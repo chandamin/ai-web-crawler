@@ -27,10 +27,9 @@ async function authorize() {
   );
 
   const oauthConfig = credentials.installed || credentials.web;
-
   if (!oauthConfig) {
     throw new Error(
-      'Invalid credentials.json format'
+      'Invalid credentials.json: expected "installed" or "web"'
     );
   }
 
@@ -42,21 +41,39 @@ async function authorize() {
     redirect_uris[0]
   );
 
-  // ✅ PRODUCTION MODE (Render)
-  // token.json MUST already exist
-  if (!fs.existsSync(TOKEN_PATH)) {
-    throw new Error(
-      'token.json not found. Please authorize locally first.'
+  if (fs.existsSync(TOKEN_PATH)) {
+    oAuth2Client.setCredentials(
+      JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'))
     );
+    return oAuth2Client;
   }
 
-  oAuth2Client.setCredentials(
-    JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'))
+  const authUrl = oAuth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: SCOPES,
+  });
+
+  console.log('Authorize this app:\n', authUrl);
+  await open(authUrl);
+
+  const readline = await import('readline');
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const code = await new Promise(resolve =>
+    rl.question('Enter the code from that page here: ', resolve)
   );
+
+  rl.close();
+
+  const { tokens } = await oAuth2Client.getToken(code);
+  oAuth2Client.setCredentials(tokens);
+  fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens, null, 2));
 
   return oAuth2Client;
 }
-
 
 /* ================= SCRAPER ================= */
 
