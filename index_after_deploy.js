@@ -62,93 +62,30 @@ async function authorize() {
 
 function extractStructuredContent(html) {
   const $ = cheerio.load(html);
-
-  // Remove junk
-  $('nav, header, footer, aside, script, style, iframe , .menu_mobile, .mobile-footer-icons-section, .modal-body, #breadcrumbs, .elementor-icon-list-items').remove();
-
   const elements = [];
-  let lastText = '';
 
-  $('body').find('h1, h2, h3, p, ul, ol, div').each((_, el) => {
-    const tag = el.tagName.toLowerCase();
+  $('body')
+    .find('h1, h2, h3, h4, p, ul')
+    .each((_, el) => {
+      const tag = el.tagName.toLowerCase();
 
-    /* ---------------- HEADINGS ---------------- */
-    if (['h1', 'h2', 'h3'].includes(tag)) {
-      const text = $(el).text().trim();
-      if (text && text !== lastText) {
-        elements.push({ type: tag, text });
-        lastText = text;
+      if (['h1', 'h2', 'h3', 'h4', 'p'].includes(tag)) {
+        const text = $(el).text().trim();
+        if (text) elements.push({ type: tag, text });
       }
-    }
 
-    /* ---------------- PARAGRAPHS ---------------- */
- if (tag === 'p') {
-  const text = $(el).text().trim();
-
-  // ❌ Skip encoded iframes
-  if (
-    text.includes('<iframe') ||
-    text.includes('&lt;iframe') ||
-    text.includes('</iframe') ||
-    text.includes('&lt;/iframe')
-  ) {
-    return;
-  }
-
-  if (text.length > 5 && text !== lastText) {
-    elements.push({ type: 'p', text });
-    lastText = text;
-  }
-}
-
-
-    /* ---------------- TEXT NODES INSIDE DIV ---------------- */
-    if (tag === 'div') {
-      const directText = $(el)
-        .contents()
-        .filter((_, node) => node.type === 'text')
-        .text()
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      if (directText.length > 10 && directText !== lastText) {
-        elements.push({ type: 'p', text: directText });
-        lastText = directText;
+      if (tag === 'ul') {
+        $(el)
+          .find('li')
+          .each((_, li) => {
+            const text = $(li).text().trim();
+            if (text) elements.push({ type: 'li', text });
+          });
       }
-    }
-
-    /* ---------------- UNORDERED LIST ---------------- */
-    if (tag === 'ul') {
-      $(el)
-        .find('li')
-        .each((_, li) => {
-          const text = $(li).text().trim();
-          if (text && text !== lastText) {
-            elements.push({ type: 'li', text });
-            lastText = text;
-          }
-        });
-    }
-
-    /* ---------------- ORDERED LIST ---------------- */
-    if (tag === 'ol') {
-      $(el)
-        .find('li')
-        .each((_, li) => {
-          const text = $(li).text().trim();
-          if (text && text !== lastText) {
-            elements.push({ type: 'oli', text });
-            lastText = text;
-          }
-        });
-    }
-  });
+    });
 
   return elements;
 }
-
-
-
 
 /* ================= GOOGLE DOCS ================= */
 
@@ -161,101 +98,39 @@ async function createGoogleDoc(docs, title) {
 
 function buildRequests(content) {
   const requests = [];
-  let index = 1;
 
   for (const item of content) {
-    const text = item.text + '\n';
-
-    // Insert text
     requests.push({
       insertText: {
-        location: { index },
-        text,
+        location: { index: 1 },
+        text: item.text + '\n',
       },
     });
 
-    const start = index;
-    const end = index + text.length;
-
-    // Base font for all text
-    requests.push({
-      updateTextStyle: {
-        range: { startIndex: start, endIndex: end },
-        textStyle: {
-          weightedFontFamily: {
-            fontFamily: 'Arial',
-          },
-          fontSize: {
-            magnitude: 11,
-            unit: 'PT',
-          },
-        },
-        fields: 'weightedFontFamily,fontSize',
-      },
-    });
-
-    // Headings
-    if (item.type === 'h1' || item.type === 'h2' || item.type === 'h3') {
+    if (item.type.startsWith('h')) {
       requests.push({
         updateParagraphStyle: {
-          range: { startIndex: start, endIndex: end },
+          range: { startIndex: 1, endIndex: item.text.length + 1 },
           paragraphStyle: {
-            namedStyleType:
-              item.type === 'h1'
-                ? 'HEADING_1'
-                : item.type === 'h2'
-                ? 'HEADING_2'
-                : 'HEADING_3',
+            namedStyleType: `HEADING_${item.type[1]}`,
           },
           fields: 'namedStyleType',
         },
       });
     }
 
-    // Paragraph spacing
-    if (item.type === 'p') {
-      requests.push({
-        updateParagraphStyle: {
-          range: { startIndex: start, endIndex: end },
-          paragraphStyle: {
-            spaceBelow: {
-              magnitude: 10,
-              unit: 'PT',
-            },
-          },
-          fields: 'spaceBelow',
-        },
-      });
-    }
-
-    // Bullet list
     if (item.type === 'li') {
       requests.push({
         createParagraphBullets: {
-          range: { startIndex: start, endIndex: end },
+          range: { startIndex: 1, endIndex: item.text.length + 1 },
           bulletPreset: 'BULLET_DISC_CIRCLE_SQUARE',
         },
       });
     }
-
-    // Numbered list
-    if (item.type === 'oli') {
-      requests.push({
-        createParagraphBullets: {
-          range: { startIndex: start, endIndex: end },
-          bulletPreset: 'NUMBERED_DECIMAL_ALPHA_ROMAN',
-        },
-      });
-    }
-
-    index = end;
   }
 
   return requests;
 }
-
-
-
 
 /* ================= CORE LOGIC ================= */
 
