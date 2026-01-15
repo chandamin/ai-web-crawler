@@ -5,6 +5,7 @@ import * as cheerio from 'cheerio';
 import fs from 'fs';
 import open from 'open';
 import { google } from 'googleapis';
+import zapierRoute from './zapier.js';
 
 /* ================= BASIC SETUP ================= */
 
@@ -453,6 +454,8 @@ app.post('/', async (req, res) => {
     res.send('<h3>❌ Error occurred. Check server logs.</h3>');
   }
 });
+
+app.use('/zapier', zapierRoute);
 
 /* ================= START SERVER ================= */
 
