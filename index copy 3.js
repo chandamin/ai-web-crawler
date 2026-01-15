@@ -87,11 +87,11 @@ function extractStructuredContent(html) {
   const elements = [];
   let lastText = '';
 
-  $('body').find('h1, h2, h3, h4, p, ul, ol, div').each((_, el) => {
+  $('body').find('h1, h2, h3, p, ul, ol, div').each((_, el) => {
     const tag = el.tagName.toLowerCase();
 
     /* ---------------- HEADINGS ---------------- */
-    if (['h1', 'h2', 'h3', 'h4'].includes(tag)) {
+    if (['h1', 'h2', 'h3'].includes(tag)) {
       const text = $(el).text().trim();
       if (text && text !== lastText) {
         elements.push({ type: tag, text });
@@ -100,31 +100,11 @@ function extractStructuredContent(html) {
     }
 
     /* ---------------- PARAGRAPHS ---------------- */
-if (tag === 'p') {
-  const links = [];
+ if (tag === 'p') {
+  const text = $(el).text().trim();
 
-  $(el)
-    .find('a[href]')
-    .each((_, a) => {
-      const text = $(a).text().trim();
-      const href = $(a).attr('href');
-
-      if (text && href && !href.startsWith('javascript:')) {
-        links.push({ text, href });
-      }
-    });
-
-  const text = $(el)
-    .clone()
-    .children('a')
-    .remove()
-    .end()
-    .text()
-    .trim();
-
-  // ❌ BLOCK encoded iframe junk
+  // ❌ Skip encoded iframes
   if (
-    !text ||
     text.includes('<iframe') ||
     text.includes('&lt;iframe') ||
     text.includes('</iframe') ||
@@ -137,60 +117,23 @@ if (tag === 'p') {
     elements.push({ type: 'p', text });
     lastText = text;
   }
-
-  // Push anchors separately
-  for (const link of links) {
-    elements.push({
-      type: 'a',
-      text: link.text,
-      href: link.href,
-    });
-  }
 }
-
-
 
 
     /* ---------------- TEXT NODES INSIDE DIV ---------------- */
-if (tag === 'div') {
+    if (tag === 'div') {
+      const directText = $(el)
+        .contents()
+        .filter((_, node) => node.type === 'text')
+        .text()
+        .replace(/\s+/g, ' ')
+        .trim();
 
-  /* ---------------- ACCORDION / TITLE DIV (SPAN ONLY) ---------------- */
-  if (
-    $(el).children('span').length &&
-    !$(el).children('p, ul, ol, div').length
-  ) {
-    const text = $(el)
-      .children('span')
-      .first()
-      .text()
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (text.length > 5 && text !== lastText) {
-      elements.push({ type: 'p', text });
-      lastText = text;
+      if (directText.length > 10 && directText !== lastText) {
+        elements.push({ type: 'p', text: directText });
+        lastText = directText;
+      }
     }
-
-    return;
-  }
-
-  /* ---------------- CONTENT DIV (TEXT + INLINE TAGS) ---------------- */
-  const text = $(el)
-    .contents()
-    .filter((_, node) =>
-      node.type === 'text' ||
-      (node.type === 'tag' && ['a', 'sup', 'strong'].includes(node.name))
-    )
-    .text()
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (text.length > 20 && text !== lastText) {
-    elements.push({ type: 'p', text });
-    lastText = text;
-  }
-}
-
 
     /* ---------------- UNORDERED LIST ---------------- */
     if (tag === 'ul') {
@@ -270,61 +213,22 @@ function buildRequests(content) {
     });
 
     // Headings
-    const headingMap = {
-  h1: 'HEADING_1',
-  h2: 'HEADING_2',
-  h3: 'HEADING_3',
-  h4: 'HEADING_4',
-};
-
-if (headingMap[item.type]) {
-  requests.push({
-    updateParagraphStyle: {
-      range: { startIndex: start, endIndex: end },
-      paragraphStyle: {
-        namedStyleType: headingMap[item.type],
-      },
-      fields: 'namedStyleType',
-    },
-  });
-}
-
-    // Hyperlink
-    if (item.type === 'a') {
-    const text = item.text + '\n';
-
-    requests.push({
-        insertText: {
-        location: { index },
-        text,
+    if (item.type === 'h1' || item.type === 'h2' || item.type === 'h3') {
+      requests.push({
+        updateParagraphStyle: {
+          range: { startIndex: start, endIndex: end },
+          paragraphStyle: {
+            namedStyleType:
+              item.type === 'h1'
+                ? 'HEADING_1'
+                : item.type === 'h2'
+                ? 'HEADING_2'
+                : 'HEADING_3',
+          },
+          fields: 'namedStyleType',
         },
-    });
-
-    requests.push({
-        updateTextStyle: {
-        range: {
-            startIndex: index,
-            endIndex: index + item.text.length,
-        },
-        textStyle: {
-            link: {
-            url: item.href,
-            },
-            foregroundColor: {
-            color: {
-                rgbColor: { blue: 1 },
-            },
-            },
-            underline: true,
-        },
-        fields: 'link,foregroundColor,underline',
-        },
-    });
-
-    index += text.length;
-    continue;
+      });
     }
-
 
     // Paragraph spacing
     if (item.type === 'p') {
