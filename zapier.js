@@ -3,26 +3,25 @@ import fetch from 'node-fetch';
 
 const router = express.Router();
 
-// TEMP storage (for demo)
-let latestGoogleDocUrl = null;
+// Store results by requestId
+const results = {};
 
 /**
  * GET /zapier
- * Show form + auto display result
  */
 router.get('/', (req, res) => {
+  const requestId = req.query.requestId || '';
+
   res.send(`
     <!DOCTYPE html>
     <html>
       <head>
         <title>Scrape URLs to Google Docs</title>
-        <meta charset="utf-8" />
       </head>
       <body style="font-family: Arial; padding: 40px;">
         <h2>Scrape URLs to Google Docs</h2>
 
         <form method="POST" action="/zapier">
-          <p>Enter one URL</p>
           <input
             type="url"
             name="url"
@@ -34,18 +33,22 @@ router.get('/', (req, res) => {
           <button type="submit">Generate Google Docs</button>
         </form>
 
-        <p id="result" style="margin-top:20px;"></p>
+        <p id="status">${requestId ? '⏳ Waiting for document...' : ''}</p>
 
         <script>
-          setInterval(async () => {
-            const res = await fetch('/zapier/result');
-            const data = await res.json();
+          const requestId = "${requestId}";
 
-            if (data.url) {
-              document.getElementById('result').innerHTML =
-                '<a href="' + data.url + '" target="_blank">📄 Open Google Doc</a>';
-            }
-          }, 3000);
+          if (requestId) {
+            setInterval(async () => {
+              const res = await fetch("/zapier/result?requestId=" + requestId);
+              const data = await res.json();
+
+              if (data.url) {
+                document.getElementById("status").innerHTML =
+                  '<a href="' + data.url + '" target="_blank">📄 Open Google Doc</a>';
+              }
+            }, 3000);
+          }
         </script>
       </body>
     </html>
@@ -54,7 +57,7 @@ router.get('/', (req, res) => {
 
 /**
  * POST /zapier
- * Send URL to Zapier
+ * Send URL to Zapier with requestId
  */
 router.post('/', async (req, res) => {
   const url = req.body?.url;
@@ -63,41 +66,43 @@ router.post('/', async (req, res) => {
     return res.status(400).send('URL is required');
   }
 
-  try {
-    const zapierWebhook =
-      `https://hooks.zapier.com/hooks/catch/26055726/uga3dov/?url=${encodeURIComponent(url)}`;
+  const requestId = Date.now().toString();
 
-    await fetch(zapierWebhook);
+  results[requestId] = null;
 
-    res.redirect('/zapier');
-  } catch (error) {
-    res.status(500).send('Failed to send to Zapier');
-  }
+  const zapierWebhook =
+    `https://hooks.zapier.com/hooks/catch/26055726/uga3dov/?url=${encodeURIComponent(url)}&requestId=${requestId}`;
+
+  await fetch(zapierWebhook);
+
+  res.redirect(`/zapier?requestId=${requestId}`);
 });
 
 /**
  * POST /zapier/callback
- * Zapier sends Google Doc link here
+ * Zapier sends doc URL back
  */
 router.post('/callback', (req, res) => {
-  const { google_doc_url } = req.body;
+  const { google_doc_url, requestId } = req.body;
 
-  if (!google_doc_url) {
-    return res.status(400).json({ error: 'google_doc_url missing' });
+  if (!google_doc_url || !requestId) {
+    return res.status(400).json({ error: 'Missing google_doc_url or requestId' });
   }
 
-  latestGoogleDocUrl = google_doc_url;
+  results[requestId] = google_doc_url;
 
   res.json({ success: true });
 });
 
 /**
  * GET /zapier/result
- * Frontend fetches latest Google Doc link
+ * Frontend polls for its own result
  */
 router.get('/result', (req, res) => {
+  const { requestId } = req.query;
+
   res.json({
-    url: latestGoogleDocUrl
+    url: results[requestId] || null
   });
 });
 
