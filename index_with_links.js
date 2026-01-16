@@ -246,7 +246,7 @@ function buildRequests(content) {
       
       // First pass: insert all text
       for (const segment of item.segments) {
-        const text = segment.text + (segment.type === 'link' ? ' ' : ' ');
+        const text = segment.text + (segment.type === 'link' ? '' : ' ');
         
         requests.push({
           insertText: {
