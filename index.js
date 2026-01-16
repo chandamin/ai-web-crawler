@@ -516,7 +516,7 @@ app.get('/generate-token', (req, res) => {
     access_type: 'offline',
     scope: SCOPES,
     prompt: 'consent select_account',
-    redirect_uri: 'http://localhost:3000/generate-token/callback', // 🔥 IMPORTANT
+    redirect_uri: 'https://ai-web-crawler.onrender.com/generate-token/callback', // 🔥 IMPORTANT
   });
 
   res.redirect(authUrl);
@@ -540,7 +540,7 @@ app.get('/generate-token/callback', async (req, res) => {
   const oAuth2Client = new google.auth.OAuth2(
     client_id,
     client_secret,
-    'http://localhost:3000/generate-token/callback'
+    'https://ai-web-crawler.onrender.com/generate-token/callback'
   );
 
   const { tokens } = await oAuth2Client.getToken(code);
