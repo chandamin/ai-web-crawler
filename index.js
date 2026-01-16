@@ -498,6 +498,59 @@ app.post('/', async (req, res) => {
 
 app.use('/zapier', zapierRoute);
 
+
+app.get('/generate-token', (req, res) => {
+  const credentials = JSON.parse(
+    fs.readFileSync(CREDENTIALS_PATH, 'utf8')
+  );
+
+  const oauthConfig = credentials.installed || credentials.web;
+  const { client_id, client_secret } = oauthConfig;
+
+  const oAuth2Client = new google.auth.OAuth2(
+    client_id,
+    client_secret
+  );
+
+  const authUrl = oAuth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: SCOPES,
+    prompt: 'consent select_account',
+    redirect_uri: 'http://localhost:3000/generate-token/callback', // 🔥 IMPORTANT
+  });
+
+  res.redirect(authUrl);
+});
+
+
+
+app.get('/generate-token/callback', async (req, res) => {
+  const code = req.query.code;
+  if (!code) {
+    return res.send('Authorization failed');
+  }
+
+  const credentials = JSON.parse(
+    fs.readFileSync(CREDENTIALS_PATH, 'utf8')
+  );
+
+  const oauthConfig = credentials.installed || credentials.web;
+  const { client_id, client_secret } = oauthConfig;
+
+  const oAuth2Client = new google.auth.OAuth2(
+    client_id,
+    client_secret,
+    'http://localhost:3000/generate-token/callback'
+  );
+
+  const { tokens } = await oAuth2Client.getToken(code);
+
+  // 🚫 No file write
+  res.json(tokens);
+});
+
+
+
 /* ================= START SERVER ================= */
 
 app.listen(3000, () => {
