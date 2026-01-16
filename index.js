@@ -83,7 +83,7 @@ function extractStructuredContent(html) {
   const $ = cheerio.load(html);
 
   // Remove junk
-  $('nav, header, footer, aside, script, style, iframe , .menu_mobile, .mobile-footer-icons-section, .modal-body, #breadcrumbs, .elementor-icon-list-items, .footer_top_form_div, .xoo-cp-container').remove();
+  $('nav, header, footer, aside, script, style, iframe , .menu_mobile, .mobile-footer-icons-section, .modal-body, #breadcrumbs, .elementor-icon-list-items, .footer_top_form_div, .xoo-cp-container, .breadcrumb').remove();
 
   const elements = [];
   let lastText = '';
