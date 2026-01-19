@@ -427,7 +427,10 @@ async function processUrls(urls) {
     const html = (await axios.get(url)).data;
     const content = extractStructuredContent(html);
 
-    const title = url.replace(/https?:\/\//, '');
+    // 🔥 Get first H1 as document title
+    const firstH1 = content.find(item => item.type === 'h1');
+    const title = firstH1?.text || new URL(url).hostname;
+
     const docId = await createGoogleDoc(docs, title);
 
     const requests = buildRequests(content);
@@ -445,6 +448,7 @@ async function processUrls(urls) {
 
   return results;
 }
+
 
 /* ================= UI ================= */
 
